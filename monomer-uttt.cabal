@@ -28,6 +28,7 @@ library
       Model
       Model.AppEvent
       Model.AppModel
+      Model.TTT
       UI
   other-modules:
       Paths_monomer_uttt
@@ -40,6 +41,7 @@ library
       base >=4.7 && <5
     , lens
     , monomer
+    , monomer-widgets
   default-language: Haskell2010
 
 executable monomer-uttt-exe
@@ -56,6 +58,7 @@ executable monomer-uttt-exe
     , lens
     , monomer
     , monomer-uttt
+    , monomer-widgets
   default-language: Haskell2010
 
 test-suite monomer-uttt-test
@@ -73,4 +76,5 @@ test-suite monomer-uttt-test
     , lens
     , monomer
     , monomer-uttt
+    , monomer-widgets
   default-language: Haskell2010
