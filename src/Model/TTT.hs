@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Model.TTT
@@ -10,6 +12,8 @@ module Model.TTT
 
 import Control.Lens
 
+import Model.MCTS
+
 data Player
     = PlayerX
     | PlayerO
@@ -20,6 +24,16 @@ data TTT = TTT
     { _tttPosition :: [Player]
     , _tttWinner :: Player
     } deriving (Eq, Show)
+
+instance MCTSGame (TTT, Player) Int where
+    getLegalMoves (t, _) = getEmptySquares t
+    performMove (t, PlayerX) i = (makeMove PlayerX i t, PlayerO)
+    performMove (t, PlayerO) i = (makeMove PlayerO i t, PlayerX)
+    performMove (t, p) i = (makeMove p i t, p)
+    getOutcome (TTT{..}, p)
+        | _tttWinner == PlayerNone = RolloutDraw
+        | _tttWinner == p = RolloutWin
+        | otherwise = RolloutLoss
 
 initTTT :: TTT
 initTTT = TTT

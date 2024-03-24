@@ -28,6 +28,7 @@ library
       Model
       Model.AppEvent
       Model.AppModel
+      Model.MCTS
       Model.TTT
       UI
   other-modules:
@@ -42,6 +43,8 @@ library
     , lens
     , monomer
     , monomer-widgets
+    , random
+    , text-show
   default-language: Haskell2010
 
 executable monomer-uttt-exe
@@ -59,6 +62,8 @@ executable monomer-uttt-exe
     , monomer
     , monomer-uttt
     , monomer-widgets
+    , random
+    , text-show
   default-language: Haskell2010
 
 test-suite monomer-uttt-test
@@ -77,4 +82,6 @@ test-suite monomer-uttt-test
     , monomer
     , monomer-uttt
     , monomer-widgets
+    , random
+    , text-show
   default-language: Haskell2010

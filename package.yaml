@@ -24,6 +24,8 @@ dependencies:
 - lens
 - monomer
 - monomer-widgets
+- random
+- text-show
 
 default-extensions:
 - OverloadedStrings
