@@ -1,7 +1,8 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Model.AppEvent
-    ( AppEvent(..)
+    ( ClickMove(..)
+    , AppEvent(..)
     , handleEvent
     ) where
 
@@ -12,12 +13,17 @@ import Monomer
 
 import Model.AppModel
 
+data ClickMove
+    = UltimateMove (Int, Int)
+    | SimpleMove Int
+    deriving (Eq, Show)
+
 data AppEvent
     = AppInit
     | AppResetGame
-    | AppClick (Int, Int) Bool
+    | AppClick ClickMove Bool
     | AppRespond
-    | AppResponseCalculated (Maybe (Int, Int))
+    | AppResponseCalculated (Maybe ClickMove)
     | AppSetResponseThread (Maybe ThreadId)
     | AppAbortResponse
     deriving (Eq, Show)
@@ -37,17 +43,19 @@ handleEvent _ _ model event = case event of
 resetGameHandle :: EventHandle
 resetGameHandle model =
     [ Model $ model
-        & mainBoard .~ initUTTT
+        & mainBoardUltimate .~ initUTTT
+        & mainBoard .~ initTTT
+        & currentTurnUltimate .~ True
         & currentTurn .~ True
     ]
 
-clickHandle :: (Int, Int) -> Bool -> EventHandle
-clickHandle (i, j) human model@(AppModel{..}) = response where
+clickHandle :: ClickMove -> Bool -> EventHandle
+clickHandle (UltimateMove (i, j)) human model@(AppModel{..}) = response where
     response = if valid
         then
             [ Model $ model
-                & mainBoard %~ makeUltimateMove p (i, j)
-                & currentTurn %~ not
+                & mainBoardUltimate %~ makeUltimateMove p (i, j)
+                & currentTurnUltimate %~ not
             , responseIf (human && _amAutoReply) $ Event AppRespond
             ]
         else []
@@ -56,26 +64,52 @@ clickHandle (i, j) human model@(AppModel{..}) = response where
         , j `elem` getEmptySquares (_utttPosition!!i)
         , not human || null _amResponseThread
         ]
+    p = if _amCurrentTurnUltimate
+        then PlayerX
+        else PlayerO
+    UTTT{..} = _amMainBoardUltimate
+clickHandle (SimpleMove i) human model@(AppModel{..}) = response where
+    response = if valid
+        then
+            [ Model $ model
+                & mainBoard %~ makeMove p i
+                & currentTurn %~ not
+            , responseIf (human && _amAutoReply) $ Event AppRespond
+            ]
+        else []
+    valid = and
+        [ i `elem` getEmptySquares _amMainBoard
+        , not human || null _amResponseThread
+        ]
     p = if _amCurrentTurn
         then PlayerX
         else PlayerO
-    UTTT{..} = _amMainBoard
 
 respondHandle :: EventHandle
 respondHandle AppModel{..} = [Producer producerHandler] where
     producerHandler raiseEvent = do
         mvar <- newEmptyMVar
-        thread <- forkIO $ do
-            let p = if _amCurrentTurn
-                    then PlayerX
-                    else PlayerO
-            result <- mctsMove (_amMainBoard, p) _amMctsRuns
-            raiseEvent $ AppResponseCalculated result
-            putMVar mvar ()
+        let ultimateSequence = do
+                let p = if _amCurrentTurnUltimate
+                        then PlayerX
+                        else PlayerO
+                result <- mctsMove (_amMainBoardUltimate, p) _amMctsRuns
+                raiseEvent $ AppResponseCalculated $ UltimateMove <$> result
+                putMVar mvar ()
+            simpleSequence = do
+                let p = if _amCurrentTurn
+                        then PlayerX
+                        else PlayerO
+                result <- mctsMove (_amMainBoard, p) _amMctsRuns
+                raiseEvent $ AppResponseCalculated $ SimpleMove <$> result
+                putMVar mvar ()
+        thread <- forkIO $ case _amGameMode of
+            UTTTMode -> ultimateSequence
+            TTTMode -> simpleSequence
         raiseEvent $ AppSetResponseThread $ Just thread
         takeMVar mvar
 
-responseCalculatedHandle :: Maybe (Int, Int) -> EventHandle
+responseCalculatedHandle :: Maybe ClickMove -> EventHandle
 responseCalculatedHandle v model = response where
     response = (Model $ model & responseThread .~ Nothing):clickEvent
     clickEvent = [Event $ AppClick (fromJust v) False | isJust v]

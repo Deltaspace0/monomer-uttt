@@ -13,36 +13,55 @@ import Model
 buildUI :: UIBuilder AppModel AppEvent
 buildUI _ AppModel{..} = tree where
     tree = hstack_ [childSpacing_ 16]
-        [ zstack
-            [ checkerboard_ 3 3 [lightColor gray] checkerWidgets
-            , widgetIf (_utttWinner /= PlayerNone) $ getImage _utttWinner
-                `styleBasic` [bgColor $ rgba 0 0 0 0.64]
-            ] `styleBasic` [sizeReqW $ fixedSize 608]
+        [ case _amGameMode of
+            UTTTMode -> ultimateMode
+            TTTMode -> simpleMode
         , separatorLine
         , vstack_ [childSpacing_ 16]
-            [ button "Reset game" AppResetGame `nodeEnabled`
-                null _amResponseThread
-            , if null _amResponseThread
+            [ button "Reset game" AppResetGame `nodeEnabled` notResponding
+            , if notResponding
                 then button "Play MCTS response" AppRespond
                 else button "Abort response" AppAbortResponse
+            , separatorLine
             , label $ "MCTS runs: " <> showt _amMctsRuns
             , hslider_ mctsRuns 100 20000 [dragRate 1]
             , labeledCheckbox_ "Auto reply" autoReply [textRight]
+            , separatorLine
+            , label "Game mode:"
+            , vstack_ [childSpacing_ 16]
+                [ optionButton "UTTT" UTTTMode gameMode
+                , optionButton "Tic-tac-toe" TTTMode gameMode
+                ] `nodeEnabled` notResponding
             ]
         ] `styleBasic` [padding 16]
+    notResponding = null _amResponseThread
+    ultimateMode = zstack
+        [ checkerboard_ 3 3 [lightColor gray] checkerWidgets
+        , widgetIf (_utttWinner /= PlayerNone) $ getImage _utttWinner
+            `styleBasic` [bgColor $ rgba 0 0 0 0.64]
+        ] `styleBasic` [sizeReqW $ fixedSize 608]
+    simpleMode = zstack
+        [ checkerboard_ 3 3 [lightColor gray] checkerWidgets'
+        , widgetIf (simpleWinner /= PlayerNone) $
+            getImage simpleWinner `styleBasic` [bgColor $ rgba 0 0 0 0.64]
+        ] `styleBasic` [sizeReqW $ fixedSize 608]
+    simpleWinner = _tttWinner _amMainBoard
     checkerWidgets = zipWith makeSmallStack [0..] _utttPosition
     makeSmallStack i TTT{..} = zstack
         [ checkerboard_ 3 3 cfg $ zipWith f [0..] _tttPosition
         , widgetIf (_tttWinner /= PlayerNone || i `notElem` _utttLegals) $
             getImage _tttWinner `styleBasic` [bgColor $ rgba 0 0 0 0.64]
         ] where
-            f j p = box_ [onBtnPressed $ \_ _ -> AppClick (i, j) True] $
-                getImage p
+            f j p = box_ [onBtnPressed $ \_ _ ->
+                AppClick (UltimateMove (i, j)) True] $ getImage p
             cfg = if even i
                 then [lightColor gray]
                 else [lightColor darkBlue, darkColor aqua]
+    checkerWidgets' = zipWith f' [0..] $ _tttPosition _amMainBoard
+    f' i p = box_ [onBtnPressed $ \_ _ ->
+        AppClick (SimpleMove i) True] $ getImage p
     getImage p = case p of
         PlayerX -> image_ "assets/x.png" [fitEither]
         PlayerO -> image_ "assets/o.png" [fitEither]
         PlayerNone -> filler
-    UTTT{..} = _amMainBoard
+    UTTT{..} = _amMainBoardUltimate
