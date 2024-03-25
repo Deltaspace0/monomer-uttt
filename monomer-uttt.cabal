@@ -30,6 +30,7 @@ library
       Model.AppModel
       Model.MCTS
       Model.TTT
+      Model.UTTT
       UI
   other-modules:
       Paths_monomer_uttt

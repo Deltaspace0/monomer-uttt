@@ -4,7 +4,7 @@
 
 module Model.AppModel
     ( module Model.MCTS
-    , module Model.TTT
+    , module Model.UTTT
     , AppModel(..)
     , mainBoard
     , currentTurn
@@ -18,10 +18,10 @@ import Control.Concurrent
 import Control.Lens
 
 import Model.MCTS
-import Model.TTT
+import Model.UTTT
 
 data AppModel = AppModel
-    { _amMainBoard :: TTT
+    { _amMainBoard :: UTTT
     , _amCurrentTurn :: Bool
     , _amMctsRuns :: Int
     , _amResponseThread :: Maybe ThreadId
@@ -32,7 +32,7 @@ makeLensesWith abbreviatedFields 'AppModel
 
 initModel :: AppModel
 initModel = AppModel
-    { _amMainBoard = initTTT
+    { _amMainBoard = initUTTT
     , _amCurrentTurn = True
     , _amMctsRuns = 2000
     , _amResponseThread = Nothing

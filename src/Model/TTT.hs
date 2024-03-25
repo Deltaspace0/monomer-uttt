@@ -8,6 +8,7 @@ module Model.TTT
     , initTTT
     , getEmptySquares
     , makeMove
+    , checkWinner
     ) where
 
 import Control.Lens
@@ -50,15 +51,13 @@ makeMove :: Player -> Int -> TTT -> TTT
 makeMove p i TTT{..} = result where
     result = TTT
         { _tttPosition = newPosition
-        , _tttWinner = newWinner
+        , _tttWinner = checkWinner newPosition
         }
     newPosition = _tttPosition & ix i .~ p
-    newWinner = getWinner lineSquares
-    getWinner [] = PlayerNone
-    getWinner (x:xs) = if checkLine x == PlayerNone
-        then getWinner xs
-        else checkLine x
-    lineSquares =
+
+checkWinner :: [Player] -> Player
+checkWinner position = result where
+    result = f
         [ [0, 1, 2]
         , [3, 4, 5]
         , [6, 7, 8]
@@ -68,7 +67,11 @@ makeMove p i TTT{..} = result where
         , [0, 4, 8]
         , [2, 4, 6]
         ]
-    checkLine line = case (newPosition!!) <$> line of
+    f [] = PlayerNone
+    f (x:xs) = if checkLine x == PlayerNone
+        then f xs
+        else checkLine x
+    checkLine line = case (position!!) <$> line of
         [PlayerX, PlayerX, PlayerX] -> PlayerX
         [PlayerO, PlayerO, PlayerO] -> PlayerO
         _ -> PlayerNone

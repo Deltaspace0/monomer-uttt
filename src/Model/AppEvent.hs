@@ -15,9 +15,9 @@ import Model.AppModel
 data AppEvent
     = AppInit
     | AppResetGame
-    | AppClick Int Bool
+    | AppClick (Int, Int) Bool
     | AppRespond
-    | AppResponseCalculated (Maybe Int)
+    | AppResponseCalculated (Maybe (Int, Int))
     | AppSetResponseThread (Maybe ThreadId)
     | AppAbortResponse
     deriving (Eq, Show)
@@ -28,7 +28,7 @@ handleEvent :: AppEventHandler AppModel AppEvent
 handleEvent _ _ model event = case event of
     AppInit -> []
     AppResetGame -> resetGameHandle model
-    AppClick i human -> clickHandle i human model
+    AppClick m human -> clickHandle m human model
     AppRespond -> respondHandle model
     AppResponseCalculated v -> responseCalculatedHandle v model
     AppSetResponseThread v -> setResponseThreadHandle v model
@@ -37,27 +37,29 @@ handleEvent _ _ model event = case event of
 resetGameHandle :: EventHandle
 resetGameHandle model =
     [ Model $ model
-        & mainBoard .~ initTTT
+        & mainBoard .~ initUTTT
         & currentTurn .~ True
     ]
 
-clickHandle :: Int -> Bool -> EventHandle
-clickHandle i human model@(AppModel{..}) = response where
+clickHandle :: (Int, Int) -> Bool -> EventHandle
+clickHandle (i, j) human model@(AppModel{..}) = response where
     response = if valid
         then
             [ Model $ model
-                & mainBoard %~ makeMove p i
+                & mainBoard %~ makeUltimateMove p (i, j)
                 & currentTurn %~ not
             , responseIf (human && _amAutoReply) $ Event AppRespond
             ]
         else []
     valid = and
-        [ i `elem` getEmptySquares _amMainBoard
+        [ i `elem` _utttLegals
+        , j `elem` getEmptySquares (_utttPosition!!i)
         , not human || null _amResponseThread
         ]
     p = if _amCurrentTurn
         then PlayerX
         else PlayerO
+    UTTT{..} = _amMainBoard
 
 respondHandle :: EventHandle
 respondHandle AppModel{..} = [Producer producerHandler] where
@@ -73,7 +75,7 @@ respondHandle AppModel{..} = [Producer producerHandler] where
         raiseEvent $ AppSetResponseThread $ Just thread
         takeMVar mvar
 
-responseCalculatedHandle :: Maybe Int -> EventHandle
+responseCalculatedHandle :: Maybe (Int, Int) -> EventHandle
 responseCalculatedHandle v model = response where
     response = (Model $ model & responseThread .~ Nothing):clickEvent
     clickEvent = [Event $ AppClick (fromJust v) False | isJust v]
