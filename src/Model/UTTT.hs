@@ -11,7 +11,7 @@ module Model.UTTT
 
 import Control.Lens
 import Data.Bits
-import Data.Vector (Vector, (!))
+import Data.Vector ((!))
 
 import Model.TTT
 import Model.MCTS

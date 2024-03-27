@@ -10,10 +10,6 @@ module Model.MCTS
     , getLegalMoves
     , performMove
     , getOutcome
-    , rootPosition
-    , statWins
-    , statSimulations
-    , childNodes
     , mctsMove
     ) where
 
@@ -39,12 +35,10 @@ data Tree a b = Tree
     , _tChildNodes :: [(Tree a b, b)]
     }
 
-makeLensesWith abbreviatedFields 'Tree
-
 mctsMove :: (MCTSGame a b) => a -> Int -> IO (Maybe b)
 mctsMove position runs = do
     finalTree <- mctsRepeat runs $ initializeTree position
-    return $ snd <$> (getBestNode $ finalTree ^. childNodes)
+    return $ snd <$> getBestNode (_tChildNodes finalTree)
 
 getBestNode :: (MCTSGame a b) => [(Tree a b, b)] -> Maybe (Tree a b, b)
 getBestNode [] = Nothing
@@ -52,8 +46,8 @@ getBestNode (x:xs) = result where
     result = Just $ if null other || simulations > otherSimulations
         then x
         else fromJust other
-    simulations = (fst x) ^. statSimulations
-    otherSimulations = (fst $ fromJust other) ^. statSimulations
+    simulations = _tStatSimulations $ fst x
+    otherSimulations = _tStatSimulations $ fst $ fromJust other
     other = getBestNode xs
 
 mctsRepeat :: (MCTSGame a b) => Int -> Tree a b -> IO (Tree a b)
@@ -62,16 +56,18 @@ mctsRepeat n tree = if n <= 0
     else monteCarloTreeSearch tree >>= mctsRepeat (n-1)
 
 monteCarloTreeSearch :: (MCTSGame a b) => Tree a b -> IO (Tree a b)
-monteCarloTreeSearch tree@(Tree{..}) = result where
-    result = if _tStatSimulations == 0 || null _tChildNodes
-        then doRollout _tRootPosition <&> \x -> tree
-            & statWins +~ x
-            & statSimulations +~ 1
+monteCarloTreeSearch tree@(Tree root wins simulations nodes) = result where
+    result = if simulations == 0 || null nodes
+        then doRollout root <&> \x -> tree
+            { _tStatWins = wins + x
+            , _tStatSimulations = simulations + 1
+            }
         else monteCarloTreeSearch subTree <&> \x -> tree
-            & statWins +~ 1-(x ^. statWins)+(subTree ^. statWins)
-            & statSimulations +~ 1
-            & childNodes . element i . _1 .~ x
-    (subTree, i) = selectChild tree
+            { _tStatWins = 1 + wins + subWins - _tStatWins x
+            , _tStatSimulations = simulations + 1
+            , _tChildNodes = nodes & ix i . _1 .~ x
+            }
+    (subTree@(Tree _ subWins _ _), i) = selectChild tree
 
 selectChild :: Tree a b -> (Tree a b, Int)
 selectChild Tree{..} = f $ zip subTrees [0..] where
