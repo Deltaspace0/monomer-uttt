@@ -26,6 +26,7 @@ dependencies:
 - monomer-widgets
 - random
 - text-show
+- vector
 
 default-extensions:
 - OverloadedStrings

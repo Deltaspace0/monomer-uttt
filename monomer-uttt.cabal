@@ -46,6 +46,7 @@ library
     , monomer-widgets
     , random
     , text-show
+    , vector
   default-language: Haskell2010
 
 executable monomer-uttt-exe
@@ -65,6 +66,7 @@ executable monomer-uttt-exe
     , monomer-widgets
     , random
     , text-show
+    , vector
   default-language: Haskell2010
 
 test-suite monomer-uttt-test
@@ -85,4 +87,5 @@ test-suite monomer-uttt-test
     , monomer-widgets
     , random
     , text-show
+    , vector
   default-language: Haskell2010

@@ -61,7 +61,7 @@ clickHandle (UltimateMove (i, j)) human model@(AppModel{..}) = response where
         else []
     valid = and
         [ i `elem` _utttLegals
-        , j `elem` getEmptySquares (_utttPosition!!i)
+        , j `elem` _tttEmptySquares (_utttPosition!!i)
         , not human || null _amResponseThread
         ]
     p = if _amCurrentTurnUltimate
@@ -78,7 +78,7 @@ clickHandle (SimpleMove i) human model@(AppModel{..}) = response where
             ]
         else []
     valid = and
-        [ i `elem` getEmptySquares _amMainBoard
+        [ i `elem` _tttEmptySquares _amMainBoard
         , not human || null _amResponseThread
         ]
     p = if _amCurrentTurn

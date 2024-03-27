@@ -6,12 +6,12 @@ module Model.TTT
     ( Player(..)
     , TTT(..)
     , initTTT
-    , getEmptySquares
     , makeMove
-    , checkWinner
+    , checkerTable
     ) where
 
-import Control.Lens
+import Data.Bits
+import Data.Vector (Vector, (!), fromList)
 
 import Model.MCTS
 
@@ -22,12 +22,14 @@ data Player
     deriving (Eq, Show)
 
 data TTT = TTT
-    { _tttPosition :: [Player]
+    { _tttPositionX :: Int
+    , _tttPositionO :: Int
+    , _tttEmptySquares :: [Int]
     , _tttWinner :: Player
     } deriving (Eq, Show)
 
 instance MCTSGame (TTT, Player) Int where
-    getLegalMoves (t, _) = getEmptySquares t
+    getLegalMoves (TTT{..}, _) = _tttEmptySquares
     performMove (t, PlayerX) i = (makeMove PlayerX i t, PlayerO)
     performMove (t, PlayerO) i = (makeMove PlayerO i t, PlayerX)
     performMove (t, p) i = (makeMove p i t, p)
@@ -38,40 +40,34 @@ instance MCTSGame (TTT, Player) Int where
 
 initTTT :: TTT
 initTTT = TTT
-    { _tttPosition = replicate 9 PlayerNone
+    { _tttPositionX = 0
+    , _tttPositionO = 0
+    , _tttEmptySquares = [0..8]
     , _tttWinner = PlayerNone
     }
-
-getEmptySquares :: TTT -> [Int]
-getEmptySquares TTT{..} = if _tttWinner == PlayerNone
-    then [i | i <- [0..8], _tttPosition!!i == PlayerNone]
-    else []
 
 makeMove :: Player -> Int -> TTT -> TTT
 makeMove p i TTT{..} = result where
     result = TTT
-        { _tttPosition = newPosition
-        , _tttWinner = checkWinner newPosition
+        { _tttPositionX = newPositionX
+        , _tttPositionO = newPositionO
+        , _tttEmptySquares = if newWinner == PlayerNone
+            then filter (/=i) _tttEmptySquares
+            else []
+        , _tttWinner = newWinner
         }
-    newPosition = _tttPosition & ix i .~ p
+    newPositionX = if p == PlayerX
+        then _tttPositionX .|. bit i
+        else _tttPositionX
+    newPositionO = if p == PlayerO
+        then _tttPositionO .|. bit i
+        else _tttPositionO
+    newWinner
+        | checkerTable!newPositionX = PlayerX
+        | checkerTable!newPositionO = PlayerO
+        | otherwise = PlayerNone
 
-checkWinner :: [Player] -> Player
-checkWinner position = result where
-    result = f
-        [ [0, 1, 2]
-        , [3, 4, 5]
-        , [6, 7, 8]
-        , [0, 3, 6]
-        , [1, 4, 7]
-        , [2, 5, 8]
-        , [0, 4, 8]
-        , [2, 4, 6]
-        ]
-    f [] = PlayerNone
-    f (x:xs) = if checkLine x == PlayerNone
-        then f xs
-        else checkLine x
-    checkLine line = case (position!!) <$> line of
-        [PlayerX, PlayerX, PlayerX] -> PlayerX
-        [PlayerO, PlayerO, PlayerO] -> PlayerO
-        _ -> PlayerNone
+checkerTable :: Vector Bool
+checkerTable = (\x -> any (testMask x) targets) <$> fromList [0..511] where
+    testMask x i = x .&. i == i
+    targets = [7, 56, 73, 84, 146, 273, 292, 448] :: [Int]
