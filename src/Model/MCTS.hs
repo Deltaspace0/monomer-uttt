@@ -67,20 +67,23 @@ monteCarloTreeSearch tree@(Tree root wins simulations nodes) = result where
             , _tStatSimulations = simulations + 1
             , _tChildNodes = nodes & ix i . _1 .~ x
             }
-    (subTree@(Tree _ subWins _ _), i) = selectChild tree
+    (subTree@(Tree _ subWins _ _), i, _) = selectChild logSimulations pairs
+    logSimulations = 2*(log $ fromIntegral simulations)
+    pairs = zip (fst <$> nodes) [0..]
 
-selectChild :: Tree a b -> (Tree a b, Int)
-selectChild Tree{..} = f $ zip subTrees [0..] where
-    f [] = error "No child nodes to select"
-    f elems@(x@(Tree _ w s _, _):xs)
-        | length elems == 1 || s == 0 = x
-        | eval w s > eval w' s' = x
-        | otherwise = x'
-        where
-            x'@(Tree _ w' s' _, _) = f xs
-    eval w s = let s' = fromIntegral s in w/s' + sqrt (n/s')
-    n = 2 * (log $ fromIntegral _tStatSimulations)
-    subTrees = fst <$> _tChildNodes
+selectChild :: Double -> [(Tree a b, Int)] -> (Tree a b, Int, Double)
+selectChild _ [] = error "No child nodes to select"
+selectChild logSimulations nodes@((tree@(Tree _ w s _), move):xs)
+    | length nodes == 1 || s == 0 = child
+    | otherEval == -1 || eval < otherEval = otherChild
+    | otherwise = child
+    where
+        child = (tree, move, eval)
+        eval = if s == 0
+            then -1
+            else w/s' + sqrt (logSimulations/s')
+        s' = fromIntegral s
+        otherChild@(_, _, otherEval) = selectChild logSimulations xs
 
 doRollout :: (MCTSGame a b) => a -> IO Double
 doRollout position
