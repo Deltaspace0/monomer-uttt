@@ -14,6 +14,7 @@ module Model.MCTS
     , getBestMove
     , monteCarloTreeSearch
     , initializeTree
+    , getSubTree
     ) where
 
 import Control.Lens
@@ -37,6 +38,9 @@ data Tree a b = Tree
     , _tStatSimulations :: Int
     , _tChildNodes :: [(Tree a b, b)]
     }
+
+instance Eq (Tree a b) where
+    _ == _ = False
 
 mctsMove :: (MCTSGame a b) => a -> Int -> IO (Maybe b)
 mctsMove position runs = do
@@ -111,3 +115,10 @@ initializeTree position = Tree
     , _tChildNodes = (\x -> (subTree x, x)) <$> getLegalMoves position
     } where
         subTree = initializeTree . performMove position
+
+getSubTree :: (Eq b) => b -> Tree a b -> Maybe (Tree a b)
+getSubTree move Tree{..} = findNode _tChildNodes where
+    findNode [] = Nothing
+    findNode ((subTree, x):xs) = if x == move
+        then Just subTree
+        else findNode xs

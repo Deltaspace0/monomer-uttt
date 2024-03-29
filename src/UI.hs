@@ -29,6 +29,7 @@ buildUI _ AppModel{..} = tree where
             , separatorLine
             , label $ "MCTS runs: " <> showt _amMctsRuns
             , hslider_ mctsRuns 1000 50000 [dragRate 1]
+            , labeledCheckbox_ "Preserve tree" preserveTree [textRight]
             , labeledCheckbox_ "Auto reply" autoReply [textRight]
             , separatorLine
             , label "Game mode:"

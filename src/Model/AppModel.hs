@@ -16,6 +16,9 @@ module Model.AppModel
     , autoReply
     , gameMode
     , statusMessage
+    , preserveTree
+    , preTreeUltimate
+    , preTree
     , initModel
     ) where
 
@@ -41,6 +44,9 @@ data AppModel = AppModel
     , _amAutoReply :: Bool
     , _amGameMode :: GameMode
     , _amStatusMessage :: Maybe Text
+    , _amPreserveTree :: Bool
+    , _amPreTreeUltimate :: Maybe (Tree (UTTT, Player) (Int, Int))
+    , _amPreTree :: Maybe (Tree (TTT, Player) Int)
     } deriving Eq
 
 makeLensesWith abbreviatedFields 'AppModel
@@ -56,4 +62,7 @@ initModel = AppModel
     , _amAutoReply = True
     , _amGameMode = UTTTMode
     , _amStatusMessage = Nothing
+    , _amPreserveTree = True
+    , _amPreTreeUltimate = Nothing
+    , _amPreTree = Nothing
     }

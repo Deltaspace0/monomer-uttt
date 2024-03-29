@@ -30,6 +30,8 @@ data AppEvent
     | AppSetResponseLock (Maybe (MVar ()))
     | AppForceResponse
     | AppSetStatusMessage (Maybe Text)
+    | AppSetPreTreeUltimate (Maybe (Tree (UTTT, Player) (Int, Int)))
+    | AppSetPreTree (Maybe (Tree (TTT, Player) Int))
     deriving Eq
 
 type EventHandle = AppModel -> [AppEventResponse AppModel AppEvent]
@@ -44,6 +46,8 @@ handleEvent _ _ model event = case event of
     AppSetResponseLock v -> setResponseLockHandle v model
     AppForceResponse -> forceResponseHandle model
     AppSetStatusMessage v -> setStatusMessageHandle v model
+    AppSetPreTreeUltimate v -> setPreTreeUltimateHandle v model
+    AppSetPreTree v -> setPreTreeHandle v model
 
 resetGameHandle :: EventHandle
 resetGameHandle model =
@@ -52,6 +56,8 @@ resetGameHandle model =
         & mainBoard .~ initTTT
         & currentTurnUltimate .~ True
         & currentTurn .~ True
+        & preTreeUltimate .~ Nothing
+        & preTree .~ Nothing
     ]
 
 clickHandle :: ClickMove -> Bool -> EventHandle
@@ -61,6 +67,7 @@ clickHandle (UltimateMove (i, j)) human model@(AppModel{..}) = response where
             [ Model $ model
                 & mainBoardUltimate %~ makeUltimateMove p (i, j)
                 & currentTurnUltimate %~ not
+                & preTreeUltimate %~ (>>= getSubTree (i, j))
             , responseIf (human && _amAutoReply) $ Event AppRespond
             ]
         else []
@@ -79,6 +86,7 @@ clickHandle (SimpleMove i) human model@(AppModel{..}) = response where
             [ Model $ model
                 & mainBoard %~ makeMove p i
                 & currentTurn %~ not
+                & preTree %~ (>>= getSubTree i)
             , responseIf (human && _amAutoReply) $ Event AppRespond
             ]
         else []
@@ -109,8 +117,14 @@ respondHandle AppModel{..} = [Producer producerHandler] where
             positionSimple = if _amCurrentTurn
                 then (_amMainBoard, PlayerX)
                 else (_amMainBoard, PlayerO)
-        refUltimate <- newIORef $ initializeUltimateTree positionUltimate
-        refSimple <- newIORef $ initializeSimpleTree positionSimple
+            initUltimate = if _amPreserveTree && (isJust _amPreTreeUltimate)
+                then fromJust _amPreTreeUltimate
+                else initializeUltimateTree positionUltimate
+            initSimple = if _amPreserveTree && (isJust _amPreTree)
+                then fromJust _amPreTree
+                else initializeSimpleTree positionSimple
+        refUltimate <- newIORef initUltimate
+        refSimple <- newIORef initSimple
         let mctsLoop :: (MCTSGame a b) => Int -> IORef (Tree a b) -> IO ()
             mctsLoop 0 _ = putMVar mvar ()
             mctsLoop runs refTree = do
@@ -126,11 +140,14 @@ respondHandle AppModel{..} = [Producer producerHandler] where
         raiseEvent $ AppSetResponseLock $ Just mvar
         takeMVar mvar
         killThread thread
-        let wrapUltimate = fmap UltimateMove . getUltimateMove
-            wrapSimple = fmap SimpleMove . getSimpleMove
-        raiseEvent . AppResponseCalculated =<< case _amGameMode of
-            UTTTMode -> wrapUltimate <$> readIORef refUltimate
-            TTTMode -> wrapSimple <$> readIORef refSimple
+        ultimateTree <- readIORef refUltimate
+        simpleTree <- readIORef refSimple
+        raiseEvent $ case _amGameMode of
+            UTTTMode -> AppSetPreTreeUltimate $ Just ultimateTree
+            TTTMode -> AppSetPreTree $ Just simpleTree
+        raiseEvent $ AppResponseCalculated $ case _amGameMode of
+            UTTTMode -> UltimateMove <$> getUltimateMove ultimateTree
+            TTTMode -> SimpleMove <$> getSimpleMove simpleTree
         n <- readIORef refIterations
         let iterationMessage = "Completed " <> (showt n) <> " iterations"
         raiseEvent $ AppSetStatusMessage $ Just iterationMessage
@@ -151,3 +168,11 @@ forceResponseHandle model@(AppModel{..}) =
 
 setStatusMessageHandle :: Maybe Text -> EventHandle
 setStatusMessageHandle v model = [Model $ model & statusMessage .~ v]
+
+setPreTreeUltimateHandle
+    :: Maybe (Tree (UTTT, Player) (Int, Int))
+    -> EventHandle
+setPreTreeUltimateHandle v model = [Model $ model & preTreeUltimate .~ v]
+
+setPreTreeHandle :: Maybe (Tree (TTT, Player) Int) -> EventHandle
+setPreTreeHandle v model = [Model $ model & preTree .~ v]
