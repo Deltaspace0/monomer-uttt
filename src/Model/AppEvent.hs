@@ -8,6 +8,7 @@ module Model.AppEvent
 
 import Control.Concurrent
 import Control.Lens
+import Data.IORef
 import Data.Maybe
 import Monomer
 
@@ -24,9 +25,9 @@ data AppEvent
     | AppClick ClickMove Bool
     | AppRespond
     | AppResponseCalculated (Maybe ClickMove)
-    | AppSetResponseThread (Maybe ThreadId)
-    | AppAbortResponse
-    deriving (Eq, Show)
+    | AppSetResponseLock (Maybe (MVar ()))
+    | AppForceResponse
+    deriving Eq
 
 type EventHandle = AppModel -> [AppEventResponse AppModel AppEvent]
 
@@ -37,8 +38,8 @@ handleEvent _ _ model event = case event of
     AppClick m human -> clickHandle m human model
     AppRespond -> respondHandle model
     AppResponseCalculated v -> responseCalculatedHandle v model
-    AppSetResponseThread v -> setResponseThreadHandle v model
-    AppAbortResponse -> abortResponseHandle model
+    AppSetResponseLock v -> setResponseLockHandle v model
+    AppForceResponse -> forceResponseHandle model
 
 resetGameHandle :: EventHandle
 resetGameHandle model =
@@ -62,7 +63,7 @@ clickHandle (UltimateMove (i, j)) human model@(AppModel{..}) = response where
     valid = and
         [ i `elem` _utttLegals
         , j `elem` _tttEmptySquares (_utttPosition!!i)
-        , not human || null _amResponseThread
+        , not human || null _amResponseLock
         ]
     p = if _amCurrentTurnUltimate
         then PlayerX
@@ -79,7 +80,7 @@ clickHandle (SimpleMove i) human model@(AppModel{..}) = response where
         else []
     valid = and
         [ i `elem` _tttEmptySquares _amMainBoard
-        , not human || null _amResponseThread
+        , not human || null _amResponseLock
         ]
     p = if _amCurrentTurn
         then PlayerX
@@ -89,36 +90,52 @@ respondHandle :: EventHandle
 respondHandle AppModel{..} = [Producer producerHandler] where
     producerHandler raiseEvent = do
         mvar <- newEmptyMVar
-        let ultimateSequence = do
-                let p = if _amCurrentTurnUltimate
-                        then PlayerX
-                        else PlayerO
-                result <- mctsMove (_amMainBoardUltimate, p) _amMctsRuns
-                raiseEvent $ AppResponseCalculated $ UltimateMove <$> result
-                putMVar mvar ()
-            simpleSequence = do
-                let p = if _amCurrentTurn
-                        then PlayerX
-                        else PlayerO
-                result <- mctsMove (_amMainBoard, p) _amMctsRuns
-                raiseEvent $ AppResponseCalculated $ SimpleMove <$> result
-                putMVar mvar ()
+        let initializeUltimateTree = initializeTree
+                :: (UTTT, Player) -> Tree (UTTT, Player) (Int, Int)
+            initializeSimpleTree = initializeTree
+                :: (TTT, Player) -> Tree (TTT, Player) Int
+            getUltimateMove = getBestMove
+                :: Tree (UTTT, Player) (Int, Int) -> Maybe (Int, Int)
+            getSimpleMove = getBestMove
+                :: Tree (TTT, Player) Int -> Maybe Int
+            positionUltimate = if _amCurrentTurnUltimate
+                then (_amMainBoardUltimate, PlayerX)
+                else (_amMainBoardUltimate, PlayerO)
+            positionSimple = if _amCurrentTurn
+                then (_amMainBoard, PlayerX)
+                else (_amMainBoard, PlayerO)
+        refUltimate <- newIORef $ initializeUltimateTree positionUltimate
+        refSimple <- newIORef $ initializeSimpleTree positionSimple
+        let mctsLoop :: (MCTSGame a b) => Int -> IORef (Tree a b) -> IO ()
+            mctsLoop 0 _ = putMVar mvar ()
+            mctsLoop runs refTree = do
+                tree <- readIORef refTree
+                monteCarloTreeSearch tree >>= writeIORef refTree
+                mctsLoop (runs-1) refTree
+            ultimateLoop = mctsLoop _amMctsRuns refUltimate
+            simpleLoop = mctsLoop _amMctsRuns refSimple
         thread <- forkIO $ case _amGameMode of
-            UTTTMode -> ultimateSequence
-            TTTMode -> simpleSequence
-        raiseEvent $ AppSetResponseThread $ Just thread
+            UTTTMode -> ultimateLoop
+            TTTMode -> simpleLoop
+        raiseEvent $ AppSetResponseLock $ Just mvar
         takeMVar mvar
+        killThread thread
+        let wrapUltimate = fmap UltimateMove . getUltimateMove
+            wrapSimple = fmap SimpleMove . getSimpleMove
+        raiseEvent . AppResponseCalculated =<< case _amGameMode of
+            UTTTMode -> wrapUltimate <$> readIORef refUltimate
+            TTTMode -> wrapSimple <$> readIORef refSimple
 
 responseCalculatedHandle :: Maybe ClickMove -> EventHandle
 responseCalculatedHandle v model = response where
-    response = (Model $ model & responseThread .~ Nothing):clickEvent
+    response = (Model $ model & responseLock .~ Nothing):clickEvent
     clickEvent = [Event $ AppClick (fromJust v) False | isJust v]
 
-setResponseThreadHandle :: Maybe ThreadId -> EventHandle
-setResponseThreadHandle v model = [Model $ model & responseThread .~ v]
+setResponseLockHandle :: Maybe (MVar ()) -> EventHandle
+setResponseLockHandle v model = [Model $ model & responseLock .~ v]
 
-abortResponseHandle :: EventHandle
-abortResponseHandle model@(AppModel{..}) =
-    [ Model $ model & responseThread .~ Nothing
-    , Producer $ const $ maybe (pure ()) killThread _amResponseThread
+forceResponseHandle :: EventHandle
+forceResponseHandle model@(AppModel{..}) =
+    [ Model $ model & responseLock .~ Nothing
+    , Producer $ const $ maybe (pure ()) (flip putMVar ()) _amResponseLock
     ]

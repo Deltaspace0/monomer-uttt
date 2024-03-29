@@ -22,10 +22,10 @@ buildUI _ AppModel{..} = tree where
             [ button "Reset game" AppResetGame `nodeEnabled` notResponding
             , if notResponding
                 then button "Play MCTS response" AppRespond
-                else button "Abort response" AppAbortResponse
+                else button "Force response" AppForceResponse
             , separatorLine
             , label $ "MCTS runs: " <> showt _amMctsRuns
-            , hslider_ mctsRuns 100 20000 [dragRate 1]
+            , hslider_ mctsRuns 1000 50000 [dragRate 1]
             , labeledCheckbox_ "Auto reply" autoReply [textRight]
             , separatorLine
             , label "Game mode:"
@@ -35,7 +35,7 @@ buildUI _ AppModel{..} = tree where
                 ] `nodeEnabled` notResponding
             ]
         ] `styleBasic` [padding 16]
-    notResponding = null _amResponseThread
+    notResponding = null _amResponseLock
     ultimateMode = zstack
         [ checkerboard_ 3 3 [lightColor gray] checkerWidgets
         , widgetIf (_utttWinner /= PlayerNone) $ getImage _utttWinner

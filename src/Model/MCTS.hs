@@ -11,6 +11,9 @@ module Model.MCTS
     , performMove
     , getOutcome
     , mctsMove
+    , getBestMove
+    , monteCarloTreeSearch
+    , initializeTree
     ) where
 
 import Control.Lens
@@ -38,7 +41,10 @@ data Tree a b = Tree
 mctsMove :: (MCTSGame a b) => a -> Int -> IO (Maybe b)
 mctsMove position runs = do
     finalTree <- mctsRepeat runs $ initializeTree position
-    return $ snd <$> getBestNode (_tChildNodes finalTree)
+    return $ getBestMove finalTree
+
+getBestMove :: (MCTSGame a b) => Tree a b -> Maybe b
+getBestMove tree = snd <$> getBestNode (_tChildNodes tree)
 
 getBestNode :: (MCTSGame a b) => [(Tree a b, b)] -> Maybe (Tree a b, b)
 getBestNode [] = Nothing

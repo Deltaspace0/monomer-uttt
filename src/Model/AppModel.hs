@@ -12,7 +12,7 @@ module Model.AppModel
     , currentTurnUltimate
     , currentTurn
     , mctsRuns
-    , responseThread
+    , responseLock
     , autoReply
     , gameMode
     , initModel
@@ -35,10 +35,10 @@ data AppModel = AppModel
     , _amCurrentTurnUltimate :: Bool
     , _amCurrentTurn :: Bool
     , _amMctsRuns :: Int
-    , _amResponseThread :: Maybe ThreadId
+    , _amResponseLock :: Maybe (MVar ())
     , _amAutoReply :: Bool
     , _amGameMode :: GameMode
-    } deriving (Eq, Show)
+    } deriving Eq
 
 makeLensesWith abbreviatedFields 'AppModel
 
@@ -48,8 +48,8 @@ initModel = AppModel
     , _amMainBoard = initTTT
     , _amCurrentTurnUltimate = True
     , _amCurrentTurn = True
-    , _amMctsRuns = 2000
-    , _amResponseThread = Nothing
+    , _amMctsRuns = 5000
+    , _amResponseLock = Nothing
     , _amAutoReply = True
     , _amGameMode = UTTTMode
     }
