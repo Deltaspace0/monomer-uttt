@@ -10,7 +10,9 @@ import Control.Concurrent
 import Control.Lens
 import Data.IORef
 import Data.Maybe
+import Data.Text (Text)
 import Monomer
+import TextShow
 
 import Model.AppModel
 
@@ -27,6 +29,7 @@ data AppEvent
     | AppResponseCalculated (Maybe ClickMove)
     | AppSetResponseLock (Maybe (MVar ()))
     | AppForceResponse
+    | AppSetStatusMessage (Maybe Text)
     deriving Eq
 
 type EventHandle = AppModel -> [AppEventResponse AppModel AppEvent]
@@ -40,6 +43,7 @@ handleEvent _ _ model event = case event of
     AppResponseCalculated v -> responseCalculatedHandle v model
     AppSetResponseLock v -> setResponseLockHandle v model
     AppForceResponse -> forceResponseHandle model
+    AppSetStatusMessage v -> setStatusMessageHandle v model
 
 resetGameHandle :: EventHandle
 resetGameHandle model =
@@ -90,6 +94,7 @@ respondHandle :: EventHandle
 respondHandle AppModel{..} = [Producer producerHandler] where
     producerHandler raiseEvent = do
         mvar <- newEmptyMVar
+        refIterations <- newIORef (0 :: Int)
         let initializeUltimateTree = initializeTree
                 :: (UTTT, Player) -> Tree (UTTT, Player) (Int, Int)
             initializeSimpleTree = initializeTree
@@ -111,6 +116,7 @@ respondHandle AppModel{..} = [Producer producerHandler] where
             mctsLoop runs refTree = do
                 tree <- readIORef refTree
                 monteCarloTreeSearch tree >>= writeIORef refTree
+                modifyIORef refIterations succ
                 mctsLoop (runs-1) refTree
             ultimateLoop = mctsLoop _amMctsRuns refUltimate
             simpleLoop = mctsLoop _amMctsRuns refSimple
@@ -125,6 +131,9 @@ respondHandle AppModel{..} = [Producer producerHandler] where
         raiseEvent . AppResponseCalculated =<< case _amGameMode of
             UTTTMode -> wrapUltimate <$> readIORef refUltimate
             TTTMode -> wrapSimple <$> readIORef refSimple
+        n <- readIORef refIterations
+        let iterationMessage = "Completed " <> (showt n) <> " iterations"
+        raiseEvent $ AppSetStatusMessage $ Just iterationMessage
 
 responseCalculatedHandle :: Maybe ClickMove -> EventHandle
 responseCalculatedHandle v model = response where
@@ -139,3 +148,6 @@ forceResponseHandle model@(AppModel{..}) =
     [ Model $ model & responseLock .~ Nothing
     , Producer $ const $ maybe (pure ()) (flip putMVar ()) _amResponseLock
     ]
+
+setStatusMessageHandle :: Maybe Text -> EventHandle
+setStatusMessageHandle v model = [Model $ model & statusMessage .~ v]

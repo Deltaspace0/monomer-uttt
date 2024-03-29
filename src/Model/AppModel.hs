@@ -15,11 +15,13 @@ module Model.AppModel
     , responseLock
     , autoReply
     , gameMode
+    , statusMessage
     , initModel
     ) where
 
 import Control.Concurrent
 import Control.Lens
+import Data.Text (Text)
 
 import Model.MCTS
 import Model.UTTT
@@ -38,6 +40,7 @@ data AppModel = AppModel
     , _amResponseLock :: Maybe (MVar ())
     , _amAutoReply :: Bool
     , _amGameMode :: GameMode
+    , _amStatusMessage :: Maybe Text
     } deriving Eq
 
 makeLensesWith abbreviatedFields 'AppModel
@@ -52,4 +55,5 @@ initModel = AppModel
     , _amResponseLock = Nothing
     , _amAutoReply = True
     , _amGameMode = UTTTMode
+    , _amStatusMessage = Nothing
     }

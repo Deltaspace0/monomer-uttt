@@ -25,6 +25,7 @@ dependencies:
 - monomer
 - monomer-widgets
 - random
+- text
 - text-show
 - vector
 

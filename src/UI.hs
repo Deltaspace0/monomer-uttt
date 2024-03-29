@@ -5,6 +5,7 @@ module UI
     ) where
 
 import Data.Bits
+import Data.Maybe
 import Monomer
 import Monomer.Checkerboard
 import TextShow
@@ -23,6 +24,8 @@ buildUI _ AppModel{..} = tree where
             , if notResponding
                 then button "Play MCTS response" AppRespond
                 else button "Force response" AppForceResponse
+            , widgetIf (isJust _amStatusMessage) $
+                label $ fromMaybe "" _amStatusMessage
             , separatorLine
             , label $ "MCTS runs: " <> showt _amMctsRuns
             , hslider_ mctsRuns 1000 50000 [dragRate 1]
