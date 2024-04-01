@@ -32,6 +32,7 @@ data AppEvent
     | AppSetStatusMessage (Maybe Text)
     | AppSetPreTreeUltimate (Maybe (Tree (UTTT, Player) (Int, Int)))
     | AppSetPreTree (Maybe (Tree (TTT, Player) Int))
+    | AppSwitch
     deriving Eq
 
 type EventHandle = AppModel -> [AppEventResponse AppModel AppEvent]
@@ -48,6 +49,7 @@ handleEvent _ _ model event = case event of
     AppSetStatusMessage v -> setStatusMessageHandle v model
     AppSetPreTreeUltimate v -> setPreTreeUltimateHandle v model
     AppSetPreTree v -> setPreTreeHandle v model
+    AppSwitch -> switchHandle model
 
 resetGameHandle :: EventHandle
 resetGameHandle model =
@@ -69,6 +71,7 @@ clickHandle (UltimateMove (i, j)) human model@(AppModel{..}) = response where
                 & currentTurnUltimate %~ not
                 & preTreeUltimate %~ (>>= getSubTree (i, j))
             , responseIf (human && _amAutoReply) $ Event AppRespond
+            , responseIf (not human && _amAutoSwitch) $ Event AppSwitch
             ]
         else []
     valid = and
@@ -88,6 +91,7 @@ clickHandle (SimpleMove i) human model@(AppModel{..}) = response where
                 & currentTurn %~ not
                 & preTree %~ (>>= getSubTree i)
             , responseIf (human && _amAutoReply) $ Event AppRespond
+            , responseIf (not human && _amAutoSwitch) $ Event AppSwitch
             ]
         else []
     valid = and
@@ -103,7 +107,8 @@ respondHandle AppModel{..} = [Producer producerHandler] where
     producerHandler raiseEvent = do
         mvar <- newEmptyMVar
         refIterations <- newIORef (0 :: Int)
-        let initializeUltimateTree = initializeTree
+        let MCTSParameters{..} = _amMctsParams!!_amParamIndex
+            initializeUltimateTree = initializeTree
                 :: (UTTT, Player) -> Tree (UTTT, Player) (Int, Int)
             initializeSimpleTree = initializeTree
                 :: (TTT, Player) -> Tree (TTT, Player) Int
@@ -117,10 +122,10 @@ respondHandle AppModel{..} = [Producer producerHandler] where
             positionSimple = if _amCurrentTurn
                 then (_amMainBoard, PlayerX)
                 else (_amMainBoard, PlayerO)
-            initUltimate = if _amPreserveTree && (isJust _amPreTreeUltimate)
+            initUltimate = if _mpPreserveTree && (isJust _amPreTreeUltimate)
                 then fromJust _amPreTreeUltimate
                 else initializeUltimateTree positionUltimate
-            initSimple = if _amPreserveTree && (isJust _amPreTree)
+            initSimple = if _mpPreserveTree && (isJust _amPreTree)
                 then fromJust _amPreTree
                 else initializeSimpleTree positionSimple
         refUltimate <- newIORef initUltimate
@@ -129,12 +134,12 @@ respondHandle AppModel{..} = [Producer producerHandler] where
             mctsLoop 0 _ = putMVar mvar ()
             mctsLoop runs refTree = do
                 tree <- readIORef refTree
-                newTree <- monteCarloTreeSearch tree _amMctsTemperature
+                newTree <- monteCarloTreeSearch tree _mpMctsTemperature
                 writeIORef refTree newTree
                 modifyIORef refIterations succ
                 mctsLoop (runs-1) refTree
-            ultimateLoop = mctsLoop _amMctsRuns refUltimate
-            simpleLoop = mctsLoop _amMctsRuns refSimple
+            ultimateLoop = mctsLoop _mpMctsRuns refUltimate
+            simpleLoop = mctsLoop _mpMctsRuns refSimple
         thread <- forkIO $ case _amGameMode of
             UTTTMode -> ultimateLoop
             TTTMode -> simpleLoop
@@ -177,3 +182,6 @@ setPreTreeUltimateHandle v model = [Model $ model & preTreeUltimate .~ v]
 
 setPreTreeHandle :: Maybe (Tree (TTT, Player) Int) -> EventHandle
 setPreTreeHandle v model = [Model $ model & preTree .~ v]
+
+switchHandle :: EventHandle
+switchHandle model = [Model $ model & paramIndex %~ (1-)]

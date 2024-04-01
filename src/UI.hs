@@ -1,9 +1,11 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module UI
     ( buildUI
     ) where
 
+import Control.Lens
 import Data.Bits
 import Data.Maybe
 import Monomer
@@ -26,16 +28,22 @@ buildUI _ AppModel{..} = tree where
             , widgetIf (isJust _amStatusMessage) $
                 label $ fromMaybe "" _amStatusMessage
             , separatorLine
+            , hgrid_ [childSpacing_ 16]
+                [ optionButton "Config 1" 0 paramIndex
+                , optionButton "Config 2" 1 paramIndex
+                ]
             , hstack_ [childSpacing_ 16]
                 [ label "MCTS runs:"
-                , numericField mctsRuns
+                , numericField $ ixpar . mctsRuns
                 ]
             , hstack_ [childSpacing_ 16]
                 [ label "Temperature:"
-                , numericField mctsTemperature
+                , numericField $ ixpar . mctsTemperature
                 ]
-            , labeledCheckbox_ "Preserve tree" preserveTree [textRight]
-            , labeledCheckbox_ "Auto reply" autoReply [textRight]
+            , checkbox' "Preserve tree" $ ixpar . preserveTree
+            , separatorLine
+            , checkbox' "Auto switch" autoSwitch
+            , checkbox' "Auto reply" autoReply
             , separatorLine
             , label "Game mode:"
             , vstack_ [childSpacing_ 16]
@@ -80,3 +88,8 @@ buildUI _ AppModel{..} = tree where
         PlayerO -> image_ "assets/o.png" [fitEither]
         PlayerNone -> filler
     UTTT{..} = _amMainBoardUltimate
+    ixpar :: Lens' AppModel MCTSParameters
+    ixpar = mctsParams . ixl _amParamIndex
+    ixl :: Int -> Lens' [MCTSParameters] MCTSParameters
+    ixl i = lens (!!i) (\x v -> x & ix i .~ v)
+    checkbox' t l = labeledCheckbox_ t l [textRight]
