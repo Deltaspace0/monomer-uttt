@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           monomer-uttt
-version:        0.1.0.0
+version:        0.2.0.0
 description:    Please see the README on GitHub at <https://github.com/githubuser/monomer-uttt#readme>
 homepage:       https://github.com/Deltaspace0/monomer-uttt#readme
 bug-reports:    https://github.com/Deltaspace0/monomer-uttt/issues
