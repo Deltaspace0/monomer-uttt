@@ -12,6 +12,7 @@ module Model.AppModel
     , currentTurnUltimate
     , currentTurn
     , mctsRuns
+    , mctsTemperature
     , responseLock
     , autoReply
     , gameMode
@@ -40,6 +41,7 @@ data AppModel = AppModel
     , _amCurrentTurnUltimate :: Bool
     , _amCurrentTurn :: Bool
     , _amMctsRuns :: Int
+    , _amMctsTemperature :: Double
     , _amResponseLock :: Maybe (MVar ())
     , _amAutoReply :: Bool
     , _amGameMode :: GameMode
@@ -58,6 +60,7 @@ initModel = AppModel
     , _amCurrentTurnUltimate = True
     , _amCurrentTurn = True
     , _amMctsRuns = 5000
+    , _amMctsTemperature = 0.25
     , _amResponseLock = Nothing
     , _amAutoReply = True
     , _amGameMode = UTTTMode

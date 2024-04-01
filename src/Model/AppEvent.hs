@@ -129,7 +129,8 @@ respondHandle AppModel{..} = [Producer producerHandler] where
             mctsLoop 0 _ = putMVar mvar ()
             mctsLoop runs refTree = do
                 tree <- readIORef refTree
-                monteCarloTreeSearch tree >>= writeIORef refTree
+                newTree <- monteCarloTreeSearch tree _amMctsTemperature
+                writeIORef refTree newTree
                 modifyIORef refIterations succ
                 mctsLoop (runs-1) refTree
             ultimateLoop = mctsLoop _amMctsRuns refUltimate

@@ -35,16 +35,16 @@ class MCTSGame a b | a -> b where
 data Tree a b = Tree
     { _tRootPosition :: a
     , _tStatWins :: Double
-    , _tStatSimulations :: Int
+    , _tStatSims :: Int
     , _tChildNodes :: [(Tree a b, b)]
     }
 
 instance Eq (Tree a b) where
     _ == _ = False
 
-mctsMove :: (MCTSGame a b) => a -> Int -> IO (Maybe b)
-mctsMove position runs = do
-    finalTree <- mctsRepeat runs $ initializeTree position
+mctsMove :: (MCTSGame a b) => a -> Double -> Int -> IO (Maybe b)
+mctsMove position temp runs = do
+    finalTree <- mctsRepeat temp runs $ initializeTree position
     return $ getBestMove finalTree
 
 getBestMove :: (MCTSGame a b) => Tree a b -> Maybe b
@@ -53,37 +53,37 @@ getBestMove tree = snd <$> getBestNode (_tChildNodes tree)
 getBestNode :: (MCTSGame a b) => [(Tree a b, b)] -> Maybe (Tree a b, b)
 getBestNode [] = Nothing
 getBestNode (x:xs) = result where
-    result = Just $ if null other || simulations > otherSimulations
+    result = Just $ if null other || sims > otherSims
         then x
         else fromJust other
-    simulations = _tStatSimulations $ fst x
-    otherSimulations = _tStatSimulations $ fst $ fromJust other
+    sims = _tStatSims $ fst x
+    otherSims = _tStatSims $ fst $ fromJust other
     other = getBestNode xs
 
-mctsRepeat :: (MCTSGame a b) => Int -> Tree a b -> IO (Tree a b)
-mctsRepeat n tree = if n <= 0
+mctsRepeat :: (MCTSGame a b) => Double -> Int -> Tree a b -> IO (Tree a b)
+mctsRepeat temp n tree = if n <= 0
     then pure tree
-    else monteCarloTreeSearch tree >>= mctsRepeat (n-1)
+    else monteCarloTreeSearch tree temp >>= mctsRepeat temp (n-1)
 
-monteCarloTreeSearch :: (MCTSGame a b) => Tree a b -> IO (Tree a b)
-monteCarloTreeSearch tree@(Tree root wins simulations nodes) = result where
-    result = if simulations == 0 || null nodes
+monteCarloTreeSearch :: (MCTSGame a b) => Tree a b -> Double -> IO (Tree a b)
+monteCarloTreeSearch tree@(Tree root wins sims nodes) temp = result where
+    result = if sims == 0 || null nodes
         then doRollout root <&> \x -> tree
             { _tStatWins = wins + x
-            , _tStatSimulations = simulations + 1
+            , _tStatSims = sims + 1
             }
-        else monteCarloTreeSearch subTree <&> \x -> tree
+        else monteCarloTreeSearch subTree temp <&> \x -> tree
             { _tStatWins = 1 + wins + subWins - _tStatWins x
-            , _tStatSimulations = simulations + 1
+            , _tStatSims = sims + 1
             , _tChildNodes = nodes & ix i . _1 .~ x
             }
-    (subTree@(Tree _ subWins _ _), i, _) = selectChild logSimulations pairs
-    logSimulations = 2*(log $ fromIntegral simulations)
+    (subTree@(Tree _ subWins _ _), i, _) = selectChild logSims pairs
+    logSims = temp*(log $ fromIntegral sims)
     pairs = zip (fst <$> nodes) [0..]
 
 selectChild :: Double -> [(Tree a b, Int)] -> (Tree a b, Int, Double)
 selectChild _ [] = error "No child nodes to select"
-selectChild logSimulations nodes@((tree@(Tree _ w s _), move):xs)
+selectChild logSims nodes@((tree@(Tree _ w s _), move):xs)
     | length nodes == 1 || s == 0 = child
     | otherEval == -1 || eval < otherEval = otherChild
     | otherwise = child
@@ -91,9 +91,9 @@ selectChild logSimulations nodes@((tree@(Tree _ w s _), move):xs)
         child = (tree, move, eval)
         eval = if s == 0
             then -1
-            else w/s' + sqrt (logSimulations/s')
+            else w/s' + sqrt (logSims/s')
         s' = fromIntegral s
-        otherChild@(_, _, otherEval) = selectChild logSimulations xs
+        otherChild@(_, _, otherEval) = selectChild logSims xs
 
 doRollout :: (MCTSGame a b) => a -> IO Double
 doRollout position
@@ -111,7 +111,7 @@ initializeTree :: (MCTSGame a b) => a -> Tree a b
 initializeTree position = Tree
     { _tRootPosition = position
     , _tStatWins = 0
-    , _tStatSimulations = 0
+    , _tStatSims = 0
     , _tChildNodes = (\x -> (subTree x, x)) <$> getLegalMoves position
     } where
         subTree = initializeTree . performMove position
