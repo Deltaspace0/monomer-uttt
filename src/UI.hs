@@ -8,7 +8,6 @@ import Data.Bits
 import Data.Maybe
 import Monomer
 import Monomer.Checkerboard
-import TextShow
 
 import Model
 
@@ -27,8 +26,10 @@ buildUI _ AppModel{..} = tree where
             , widgetIf (isJust _amStatusMessage) $
                 label $ fromMaybe "" _amStatusMessage
             , separatorLine
-            , label $ "MCTS runs: " <> showt _amMctsRuns
-            , hslider_ mctsRuns 1000 50000 [dragRate 1]
+            , hstack_ [childSpacing_ 16]
+                [ label "MCTS runs:"
+                , numericField mctsRuns
+                ]
             , hstack_ [childSpacing_ 16]
                 [ label "Temperature:"
                 , numericField mctsTemperature
